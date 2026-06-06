@@ -1,21 +1,97 @@
 #!/bin/bash
-# Random Food Product — from Open Food Facts
-# Barcodes start at 3017620422003 — pick random range
-barcode=$((3017620000000 + RANDOM * 1000 + RANDOM % 1000))
-result=$(curl -s "https://world.openfoodfacts.org/api/v2/product/${barcode}.json")
+# Random Food Product — from Open Food Facts (curated barcode list)
+# Free, no-auth. https://world.openfoodfacts.org
+# Product-by-barcode lookup. Random EAN-13 generation hits <1% success
+# rate because most random codes don't exist in OFF. Instead we maintain
+# a curated list of 15 verified popular products and pick from that.
+# Each cron tick makes exactly 1 API call to stay under OFF's rate limit.
 
-status=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status_verbose',''))" 2>/dev/null)
+# Curated list of 15 verified barcodes across categories.
+barcodes=(
+  "3017620422003"   # Nutella (Italy, Ferrero)
+  "3046920022651"   # Lindt Excellence 70% Dark Chocolate
+  "8000500037560"   # Kinder Bueno
+  "8000500310427"   # Nutella Biscuits
+  "7613034626844"   # Chocapic Cereal (Nestlé)
+  "7622210449283"   # Prince Petit Beurre Chocolat (Mondelez)
+  "7622210411587"   # Oreo Original
+  "3228857000852"   # Harrys Pain de Mie 100% Mie Nature
+  "3175680011480"   # Gerblé Sésame Biscuits
+  "5000159461122"   # Snickers Bar
+  "5000159459228"   # Twix Twin
+  "5449000000996"   # Coca-Cola Original Taste
+  "5449000131805"   # Coca-Cola Zero
+  "5449000133335"   # Coca-Cola Zero Sugar
+  "5449000050205"   # Coca-Cola Light
+)
 
-if [ "$status" != "product found" ]; then
-    # Fallback: use a known working barcode
-    result=$(curl -s "https://world.openfoodfacts.org/api/v2/product/3017620422003.json")
-fi
+# Pick a random barcode
+barcode=${barcodes[$RANDOM % ${#barcodes[@]}]}
 
-name=$(echo "$result" | python3 -c "import sys,json; p=json.load(sys.stdin).get('product',{}); print(p.get('product_name','Unknown') or 'Unknown')" 2>/dev/null)
-brand=$(echo "$result" | python3 -c "import sys,json; p=json.load(sys.stdin).get('product',{}); print(p.get('brands','?') or '?')" 2>/dev/null)
-cals=$(echo "$result" | python3 -c "import sys,json; p=json.load(sys.stdin).get('product',{}); n=p.get('nutriments',{}); print(n.get('energy-kcal_100g','?'))" 2>/dev/null)
+# Single API call
+result=$(curl -s -m 15 "https://world.openfoodfacts.org/api/v2/product/${barcode}.json")
 
-echo "🥗 *Food Fact*"
-echo ""
-echo "**$name**"
-echo "Brand: $brand | $cals kcal/100g"
+# Parse and format — handle multiple energy key variants
+echo "$result" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print('🥗 *Food Fact*')
+    print('')
+    print('Open Food Facts is taking a break. Try again tomorrow!')
+    sys.exit(0)
+
+if d.get('status') != 1:
+    print('🥗 *Food Fact*')
+    print('')
+    print('Product not available. Try again tomorrow!')
+    sys.exit(0)
+
+p = d.get('product', {})
+name = (p.get('product_name') or 'Unknown').strip()
+brand = (p.get('brands') or '?').strip() or '?'
+n = p.get('nutriments', {})
+
+def get_fallback(d, *keys):
+    \"\"\"Get first non-empty value from a list of candidate keys.\"\"\"
+    for k in keys:
+        v = d.get(k)
+        if v is not None and v != '':
+            try:
+                fv = float(v)
+                if fv != 0:
+                    return v
+            except (TypeError, ValueError):
+                return v
+    return '?'
+
+# Try multiple energy key variants (some products only have _prepared or _100g)
+cals = get_fallback(n, 'energy-kcal_100g', 'energy-kcal', 'energy-kcal_prepared_100g', 'energy-kcal_prepared')
+sugar = get_fallback(n, 'sugars_100g', 'sugars')
+fat = get_fallback(n, 'fat_100g', 'fat')
+protein = get_fallback(n, 'proteins_100g', 'proteins')
+salt = get_fallback(n, 'salt_100g', 'salt')
+
+# Format helpers
+def fmt(v, unit=''):
+    try:
+        fv = float(v)
+        if fv == int(fv):
+            return f'{int(fv)}{unit}'
+        return f'{fv:.1f}{unit}'
+    except (TypeError, ValueError):
+        return f'{v}{unit}' if v else '?'
+
+print(f'🥗 *Food Fact*')
+print('')
+print(f'**{name}**')
+print(f'Brand: {brand}')
+print('')
+print(f'Per 100g:')
+print(f'  • Calories: {fmt(cals)} kcal')
+print(f'  • Sugar: {fmt(sugar, \" g\")}')
+print(f'  • Fat: {fmt(fat, \" g\")}')
+print(f'  • Protein: {fmt(protein, \" g\")}')
+print(f'  • Salt: {fmt(salt, \" g\")}')
+"
