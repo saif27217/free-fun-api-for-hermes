@@ -32,7 +32,7 @@ barcode=${barcodes[$RANDOM % ${#barcodes[@]}]}
 result=$(curl -s -m 15 "https://world.openfoodfacts.org/api/v2/product/${barcode}.json")
 
 # Parse and format — handle multiple energy key variants
-echo "$result" | python3 -c "
+echo "$result" | python3 << 'PYEOF'
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -53,28 +53,24 @@ name = (p.get('product_name') or 'Unknown').strip()
 brand = (p.get('brands') or '?').strip() or '?'
 n = p.get('nutriments', {})
 
-def get_fallback(d, *keys):
-    \"\"\"Get first non-empty value from a list of candidate keys.\"\"\"
+def get_fallback(d, keys):
+    """Get first non-empty value from a list of candidate keys."""
     for k in keys:
         v = d.get(k)
         if v is not None and v != '':
-            try:
-                fv = float(v)
-                if fv != 0:
-                    return v
-            except (TypeError, ValueError):
-                return v
-    return '?'
+            return v
+    return None
 
-# Try multiple energy key variants (some products only have _prepared or _100g)
-cals = get_fallback(n, 'energy-kcal_100g', 'energy-kcal', 'energy-kcal_prepared_100g', 'energy-kcal_prepared')
-sugar = get_fallback(n, 'sugars_100g', 'sugars')
-fat = get_fallback(n, 'fat_100g', 'fat')
-protein = get_fallback(n, 'proteins_100g', 'proteins')
-salt = get_fallback(n, 'salt_100g', 'salt')
+# Try multiple energy key variants
+cals = get_fallback(n, ['energy-kcal_100g', 'energy-kcal', 'energy-kcal_prepared_100g', 'energy-kcal_prepared'])
+sugar = get_fallback(n, ['sugars_100g', 'sugars'])
+fat = get_fallback(n, ['fat_100g', 'fat'])
+protein = get_fallback(n, ['proteins_100g', 'proteins'])
+salt = get_fallback(n, ['salt_100g', 'salt'])
 
-# Format helpers
 def fmt(v, unit=''):
+    if v is None:
+        return '?'
     try:
         fv = float(v)
         if fv == int(fv):
@@ -83,15 +79,15 @@ def fmt(v, unit=''):
     except (TypeError, ValueError):
         return f'{v}{unit}' if v else '?'
 
-print(f'🥗 *Food Fact*')
+print('🥗 *Food Fact*')
 print('')
 print(f'**{name}**')
 print(f'Brand: {brand}')
 print('')
-print(f'Per 100g:')
+print('Per 100g:')
 print(f'  • Calories: {fmt(cals)} kcal')
-print(f'  • Sugar: {fmt(sugar, \" g\")}')
-print(f'  • Fat: {fmt(fat, \" g\")}')
-print(f'  • Protein: {fmt(protein, \" g\")}')
-print(f'  • Salt: {fmt(salt, \" g\")}')
-"
+print(f'  • Sugar: {fmt(sugar, " g")}')
+print(f'  • Fat: {fmt(fat, " g")}')
+print(f'  • Protein: {fmt(protein, " g")}')
+print(f'  • Salt: {fmt(salt, " g")}')
+PYEOF
