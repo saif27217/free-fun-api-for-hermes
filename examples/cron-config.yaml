@@ -1,0 +1,57 @@
+# Sample cron job configuration for free-fun-api-for-hermes
+# Use with Hermes Agent's cronjob tool, or convert to standard crontab format.
+
+jobs:
+  - name: daily-joke
+    schedule: "30 2 * * *"  # 8:00 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/joke.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-fact
+    schedule: "0 3 * * *"   # 8:30 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/fact.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-bored
+    schedule: "30 3 * * *"  # 9:00 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/bored.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-advice
+    schedule: "0 4 * * *"   # 9:30 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/advice.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-country
+    schedule: "30 4 * * *"  # 10:00 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/country.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-tvshow
+    schedule: "0 5 * * *"   # 10:30 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/tvshow.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-itunes
+    schedule: "30 5 * * *"  # 11:00 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/itunes.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-meal
+    schedule: "0 6 * * *"   # 11:30 AM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/meal.sh
+    no_agent: true
+    deliver: origin
+
+  - name: daily-foodfact
+    schedule: "30 6 * * *"  # 12:00 PM IST
+    script: /home/sak/free-fun-api-for-hermes/scripts/foodfact.sh
+    no_agent: true
+    deliver: origin
