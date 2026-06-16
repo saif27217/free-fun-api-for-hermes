@@ -1,17 +1,31 @@
 #!/bin/bash
 # Random Meal — from TheMealDB
-result=$(curl -s "https://www.themealdb.com/api/json/v1/1/random.php")
-name=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['meals'][0]['strMeal'])" 2>/dev/null)
-area=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['meals'][0]['strArea'])" 2>/dev/null)
-category=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['meals'][0]['strCategory'])" 2>/dev/null)
-ingredients=$(echo "$result" | python3 -c "
-import sys,json
-m=json.load(sys.stdin)['meals'][0]
-ingredients=[m[f'strIngredient{i}'] for i in range(1,21) if m.get(f'strIngredient{i}')]
-print(', '.join(ingredients[:6]))
-" 2>/dev/null)
-
-echo "🍽️ *Recipe of the Day*"
-echo ""
-echo "**$name** — $area ($category)"
-echo "_$ingredients_"
+python3 - << 'PY'
+import sys, json, urllib.request
+try:
+    with urllib.request.urlopen('https://www.themealdb.com/api/json/v1/1/random.php', timeout=20) as r:
+        data = json.loads(r.read().decode('utf-8'))
+    meals = data.get('meals') or []
+    if not meals:
+        raise ValueError('empty meals')
+    m = meals[0]
+except Exception:
+    print('🍽️ *Recipe of the Day*')
+    print('')
+    print('???\n_Error fetching recipe._')
+    sys.exit(0)
+name = m.get('strMeal') or '?'
+area = m.get('strArea') or '?'
+category = m.get('strCategory') or '?'
+ingredients = []
+for i in range(1, 21):
+    ingredient = m.get(f'strIngredient{i}')
+    if ingredient:
+        ingredients.append(str(ingredient).strip())
+    if len(ingredients) == 6:
+        break
+print('🍽️ *Recipe of the Day*')
+print('')
+print(f'**{name}** — {area} ({category})')
+print(f'_{", ".join(ingredients)}_' if ingredients else '_No ingredients._')
+PY
